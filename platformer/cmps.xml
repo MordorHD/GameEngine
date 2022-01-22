@@ -1,0 +1,25 @@
+<Main>
+	<Window id="Window" state="xbutton" text="Title" layout="Grid" left=10 top=10 right=250 bottom=250>
+		<Button id="Button" text="Hey" gridWidth=2> </Label>
+		<Label text="Hello"> </Label>
+		<Label text="Hi" gridY=1> </Label>
+		<Slider text="Slider" gridWidth=2> </Slider>
+	</Window>
+	<Window text="Shop" layout="Stack" left=260 top=10 right=500 bottom=250>
+		<Label text="Money:" state="fixed_height|cornered" bottom=30> </Label>
+		<Group layout="Flow"> 
+			<Group layout="Stack">
+				<Image id="Image1"> </Image>
+				<Button text="Buy 100$" state="fixed_height|cornered" bottom=30> </Button>
+			</Group>
+			<Group layout="Stack">
+				<Image id="Image2"> </Image>
+				<Button text="Buy 20$" state="fixed_height|cornered" bottom=30> </Button>
+			</Group>
+			<Group layout="Stack">
+				<Image id="Image3"> </Image>
+				<Button text="Buy 20$" state="fixed_height|cornered" bottom=30> </Button>
+			</Group>
+		</Group>
+	</Window>
+</Main>

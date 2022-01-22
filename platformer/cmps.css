@@ -1,0 +1,22 @@
+Default {
+	text-color: green;
+	text-font: "Comic Sans MS 19px";
+}
+
+Window {
+	background-color: black;
+	foreground-color: dkgray;
+	hover-color: gray;
+	text-color: pink;
+	text-font: "Verdana 17px";
+}
+
+Slider {
+	foreground-color: purple;
+	
+}
+
+Button {
+	text-color: red;
+	hover-color: blue;
+}
