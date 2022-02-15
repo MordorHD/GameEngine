@@ -13,12 +13,14 @@ static HWND Window;
 static HDC BufferDc;
 static HDC WindowDc;
 
+static int BufferWidth;
+static int BufferHeight;
+static float BufferStretchX;
+static float BufferStretchY;
+
 static volatile JGCAMERA *Camera;
 
-static JGIMAGE ScreenImage;
-
-JGIMAGE JGGetScreenImage(void)
-{ return ScreenImage; }
+static XFORM Transform;
 
 void JGGetWindowSize(JGSIZE *size)
 {
@@ -28,58 +30,52 @@ void JGGetWindowSize(JGSIZE *size)
     size->height = r.bottom;
 }
 
-void JGGetScreenSize(JGSIZE *size)
-{
-    size->width = ScreenImage->bmp.bmWidth;
-    size->height = ScreenImage->bmp.bmHeight;
-}
-
 static LRESULT CALLBACK MainWndProc(HWND, UINT, WPARAM, LPARAM);
 static void *Run(void*);
 
 void JGInit(int argc, char **argv)
 {
+    __JGControlInit();
+
     WNDCLASS wc = {0};
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.style = CS_DBLCLKS;
     wc.hbrBackground = (HBRUSH) COLOR_WINDOW;
-    wc.lpszClassName = "WC_MAIN_WINDOW";
+    wc.lpszClassName = "JGWC_MAIN_WINDOW";
     wc.lpfnWndProc = MainWndProc;
     RegisterClass(&wc);
 
-    Window = CreateWindow("WC_MAIN_WINDOW", "Title", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, GetModuleHandle(NULL), NULL);
-
+    Window = CreateWindow("JGWC_MAIN_WINDOW", "Title", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, GetModuleHandle(NULL), NULL);
     WindowDc = GetDC(Window);
-    MONITORINFO mi;
-    mi.cbSize = sizeof(mi);
-    HMONITOR hmon = MonitorFromWindow(NULL, MONITOR_DEFAULTTOPRIMARY);
-    GetMonitorInfo(hmon, &mi);
-    BufferDc = CreateCompatibleDC(WindowDc);
-    HBITMAP buffer = CreateCompatibleBitmap(WindowDc, mi.rcMonitor.right, mi.rcMonitor.bottom);
-    SelectObject(BufferDc, buffer);
-    SelectObject(BufferDc, GetStockObject(DC_BRUSH));
-    SelectObject(BufferDc, GetStockObject(DC_PEN));
-    ScreenImage = malloc(sizeof(*ScreenImage));
-    ScreenImage->imageDc = BufferDc;
-    ScreenImage->hbmp = buffer;
-    ScreenImage->bmp.bmWidth  = mi.rcMonitor.right;
-    ScreenImage->bmp.bmHeight = mi.rcMonitor.bottom;
-    SetBkMode(BufferDc, TRANSPARENT);
-    SetTextAlign(BufferDc, TA_CENTER | TA_BASELINE);
 
     memset((void*) (Camera = malloc(sizeof(*Camera))), 0, sizeof(*Camera));
 
-    SetGraphicsMode(WindowDc, GM_ADVANCED);
-    SetGraphicsMode(BufferDc, GM_ADVANCED);
+}
 
-    ShowWindow(Window, SW_NORMAL);
-    UpdateWindow(Window);
+void JGSetBufferSize(int width, int height)
+{
+    HBITMAP buffer;
+    BufferDc = CreateCompatibleDC(WindowDc);
+    buffer = CreateCompatibleBitmap(WindowDc, BufferWidth = width, BufferHeight = height);
+    SelectObject(BufferDc, buffer);
+    SelectObject(BufferDc, GetStockObject(DC_BRUSH));
+    SelectObject(BufferDc, GetStockObject(DC_PEN));
+    SetBkMode(BufferDc, TRANSPARENT);
+    SetTextAlign(BufferDc, TA_CENTER | TA_BASELINE);
+    SetGraphicsMode(BufferDc, GM_ADVANCED);
+    SetGraphicsMode(WindowDc, GM_ADVANCED);
 }
 
 void JGCameraTranslate(float x, float y)
 {
     Camera->x += x;
     Camera->y += y;
+}
+
+void JGSetCameraPos(float x, float y)
+{
+    Camera->x = x;
+    Camera->y = y;
 }
 
 void JGSetCamera(JGCAMERA *newCamera)
@@ -115,7 +111,8 @@ void JGResetCamera(void)
 {
     Camera->x = 0;
     Camera->y = 0;
-    Camera->cFlags &= JGCA_BOTTOM | JGCA_TOP | JGCA_RIGHT | JGCA_VCENTER | JGCA_HCENTER | JGCA_LEFT;
+    Camera->target = NULL;
+    SetWorldTransform(BufferDc, &Transform);
 }
 
 static int SaveSate;
@@ -130,10 +127,9 @@ void JGRestore(void)
     RestoreDC(BufferDc, SaveSate);
 }
 
-JGIMAGE JGCreateImage(int width, int height, int *pixels)
+JGIMAGE JGCreateImage(int width, int height, color_t *pixels, bool flipped)
 {
     JGIMAGE img = malloc(sizeof(*img));
-    BITMAPINFO bmi;
     HDC hdc = GetDC(Window);
 
     BITMAP bmp;
@@ -144,11 +140,16 @@ JGIMAGE JGCreateImage(int width, int height, int *pixels)
     bmp.bmPlanes = 1;
     bmp.bmBitsPixel = 32;
     bmp.bmBits = pixels;
+    img->bmp = bmp;
 
     img->imageDc = CreateCompatibleDC(hdc);
     img->hbmp = CreateBitmapIndirect(&bmp);
-    img->bmp = bmp;
     SelectObject(img->imageDc, img->hbmp);
+
+    img->flippedDc = CreateCompatibleDC(hdc);
+    img->flippedHbmp = CreateCompatibleBitmap(hdc, width, height);
+    SelectObject(img->flippedDc, img->flippedHbmp);
+    StretchBlt(img->flippedDc, width, 0, -width, height, img->imageDc, 0, 0, width, height, SRCCOPY);
 
     ReleaseDC(Window, hdc);
     return img;
@@ -214,7 +215,7 @@ void JGClip(int left, int top, int right, int bottom)
     SelectClipRgn(BufferDc, hRgn);
 }
 
-void JGClipRect(const RECT *rect)
+void JGClipRect(const JGRECT *rect)
 {
     HRGN hRgn = rect ? CreateRectRgn(rect->left, rect->top, rect->right, rect->bottom) : NULL;
     SelectClipRgn(BufferDc, hRgn);
@@ -271,16 +272,6 @@ void JGNoStroke(void)
     SelectObject(BufferDc, GetStockObject(NULL_PEN));
 }
 
-void JGBkColor(color_t bkColor)
-{
-    SetBkColor(BufferDc, bkColor);
-}
-
-void JGBkMode(int mode)
-{
-    SetBkMode(BufferDc, mode);
-}
-
 void JGTextAlign(int textAlign)
 {
     SetTextAlign(BufferDc, textAlign);
@@ -307,6 +298,20 @@ void JGSetFont(JGFONT font)
 JGFONT JGCreateFont(const char *name, int size)
 {
     return CreateFont(size, 0, 0, 0, 0, 0, 0, 0, ANSI_CHARSET, 0, 0, DEFAULT_QUALITY, DEFAULT_PITCH, name);
+}
+
+int JGTextWidth(string_t text, int len)
+{
+    SIZE s;
+    GetTextExtentPoint32(BufferDc, text, len, &s);
+    return s.cx;
+}
+
+int JGTextHeight(void)
+{
+    TEXTMETRIC tm;
+    GetTextMetrics(BufferDc, &tm);
+    return tm.tmAscent + tm.tmDescent;
 }
 
 void JGText(string_t text, int len, int x, int y)
@@ -356,8 +361,6 @@ void JGGradient(int x1, int y1, color_t color1, int x2, int y2, color_t color2, 
     GradientFill(BufferDc, vert, 2, &gr, 1, GRADIENT_FILL_RECT_V);
 }
 
-XFORM Transform;
-
 void JGResetTransform(void)
 {
     Transform.eM11 = 1.0f;
@@ -366,13 +369,13 @@ void JGResetTransform(void)
     Transform.eM22 = 1.0f;
     Transform.eDx  = 0.0f;
     Transform.eDy  = 0.0f;
-    ModifyWorldTransform(BufferDc, NULL, MWT_IDENTITY);
+    SetWorldTransform(BufferDc, &Transform);
 }
 
 void JGTranslate(float x, float y)
 {
     Transform.eDx += x * Transform.eM11 + y * Transform.eM12;
-    Transform.eDy += x * Transform.eM21 + y * Transform.eM22;
+    Transform.eDy += -x * Transform.eM21 + y * Transform.eM22;
     SetWorldTransform(BufferDc, &Transform);
 }
 
@@ -382,6 +385,7 @@ void JGScale(float x, float y)
     Transform.eM12 *= x;
     Transform.eM21 *= y;
     Transform.eM22 *= y;
+    SetWorldTransform(BufferDc, &Transform);
 }
 
 void JGShear(float x, float y)
@@ -396,6 +400,7 @@ void JGShear(float x, float y)
     t1 = Transform.eM22;
     Transform.eM21 = t0 + t1 * y;
     Transform.eM22 = t0 * x + t1;
+    SetWorldTransform(BufferDc, &Transform);
 }
 
 void JGRotate(float r)
@@ -438,6 +443,7 @@ void JGRun(void)
 {
     if(running)
         return;
+    ShowWindow(Window, SW_NORMAL);
     UpdateWindow(Window);
     running = 1;
     pthread_create(&thread_id, NULL, Run, NULL);
@@ -465,7 +471,7 @@ static void *Run(void *arg)
     long x_align, y_align;
     double x, y, tx, ty;
     int l, t, r, b, drl, dbt;
-    JGPOINT2D *target;
+    void *target;
     JGStart();
     while(running)
     {
@@ -481,25 +487,33 @@ static void *Run(void *arg)
             cFlags = Camera->cFlags;
             x = Camera->x;
             y = Camera->y;
-            tx = target->x;
-            ty = target->y;
+            if(cFlags & JGCA_FTARGET)
+            {
+                tx = ((JGPOINT2D*) target)->x;
+                ty = ((JGPOINT2D*) target)->y;
+            }
+            else
+            {
+                tx = (double) ((JGPOINT*) target)->x;
+                ty = (double) ((JGPOINT*) target)->y;
+            }
             if(fabs(x - tx) >= 0.1d || fabs(y - ty) >= 0.1d)
             {
-                x_align = (cFlags & JGCA_HCENTER) ? (wr.right  >> 1) : (cFlags & JGCA_RIGHT)  ? wr.right  : 0;
-                y_align = (cFlags & JGCA_VCENTER) ? (wr.bottom >> 1) : (cFlags & JGCA_BOTTOM) ? wr.bottom : 0;
+                x_align = (cFlags & JGCA_HCENTER) ? (BufferWidth / 2) : (cFlags & JGCA_RIGHT)  ? BufferWidth  : 0;
+                y_align = (cFlags & JGCA_VCENTER) ? (BufferHeight / 2) : (cFlags & JGCA_BOTTOM) ? BufferHeight : 0;
                 l = Camera->cstr_l;
                 r = Camera->cstr_r;
                 t = Camera->cstr_t;
                 b = Camera->cstr_b;
                 drl = r - l;
                 dbt = b - t;
-                tx = drl <= wr.right ? 0
-                        : -tx - x_align >= l - wr.right ? -l
-                        : x_align + tx > r ? r - wr.right
+                tx = drl <= BufferWidth ? 0
+                        : -tx - x_align >= l - BufferWidth ? -l
+                        : x_align + tx > r ? r - BufferWidth
                         : tx - x_align;
-                ty = dbt <= wr.bottom ? 0
-                        : -ty - y_align >= t - wr.bottom ? -t
-                        : y_align + ty > b ? b - wr.bottom
+                ty = dbt <= BufferHeight ? 0
+                        : -ty - y_align >= t - BufferHeight ? -t
+                        : y_align + ty > b ? b - BufferHeight
                         : ty - y_align;
                 Camera->x += (tx - x) * 0.1f;
                 Camera->y += (ty - y) * 0.1f;
@@ -509,8 +523,9 @@ static void *Run(void *arg)
         JGDraw();
         // draw controls
         JGDispatchEvent(JGEVENT_REDRAW, NULL);
-        // copy buffer to window
-        BitBlt(WindowDc, 0, 0, wr.right, wr.bottom, BufferDc, 0, 0, SRCCOPY);
+        // stretch buffer to window
+        StretchBlt(WindowDc, 0, 0, wr.right, wr.bottom, BufferDc, 0, 0, BufferWidth, BufferHeight, SRCCOPY);
+        //BitBlt(WindowDc, 0, 0, wr.right, wr.bottom, BufferDc, 0, 0, SRCCOPY);
         clock_gettime(CLOCK_MONOTONIC, &end);
         udiff = (end.tv_sec - start.tv_sec) * SEC_TO_MICRO + (noverflow + end.tv_nsec - start.tv_nsec) / 1000;
         noverflow = (end.tv_nsec - start.tv_nsec) % 1000;
@@ -531,12 +546,15 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     PAINTSTRUCT ps;
     HDC hdc;
     RECT *rp;
+    _Bool userDispatch = 1;
     switch(msg)
     {
     case WM_CREATE: JGSetCursor(JGCURSOR_DEFAULT); return 0;
     case WM_DESTROY: PostQuitMessage(0); return 0;
     case WM_ERASEBKGND: return 1;
     case WM_SIZE:
+        BufferStretchX = (float) BufferWidth / (float) LOWORD(lParam);
+        BufferStretchY = (float) BufferHeight / (float) HIWORD(lParam);
         event.id = JGEVENT_SIZE;
         break;
     case WM_PAINT:
@@ -562,18 +580,21 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         event.vkCode = wParam;
         event.keyChar = MapVirtualKey(wParam, MAPVK_VK_TO_CHAR);
         event.flags = lParam;
+        userDispatch = !JGGetKeyboardFocusControl();
         break;
     case WM_KEYUP:
         event.id = JGEVENT_KEYRELEASED;
         event.vkCode = wParam;
         event.keyChar = MapVirtualKey(wParam, MAPVK_VK_TO_CHAR);
         event.flags = lParam;
+        userDispatch = !JGGetKeyboardFocusControl();
         break;
     case WM_CHAR:
         event.id = JGEVENT_KEYTYPED;
         event.vkCode = wParam;
         event.keyChar = wParam;
         event.flags = lParam;
+        userDispatch = !JGGetKeyboardFocusControl();
         break;
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
@@ -581,10 +602,11 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_XBUTTONDOWN:
         SetCapture(hWnd);
         event.id = JGEVENT_MOUSEPRESSED;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        event.x = GET_X_LPARAM(lParam) * BufferStretchX + Camera->x;
+        event.y = GET_Y_LPARAM(lParam) * BufferStretchY + Camera->y;
         event.flags = LOWORD(wParam);
         event.pressedButton = msg;
+        userDispatch = !JGGetMouseHoverControl();
         break;
     case WM_LBUTTONUP:
     case WM_RBUTTONUP:
@@ -592,32 +614,35 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_XBUTTONUP:
         ReleaseCapture();
         event.id = JGEVENT_MOUSERELEASED;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        event.x = GET_X_LPARAM(lParam) * BufferStretchX + Camera->x;
+        event.y = GET_Y_LPARAM(lParam) * BufferStretchY + Camera->y;
         event.flags = LOWORD(wParam);
         event.pressedButton = msg;
+        userDispatch = !JGGetMouseFocusControl();
         break;
     case WM_MOUSEWHEEL:
         event.id = JGEVENT_MOUSEWHEEL;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        event.x = GET_X_LPARAM(lParam) * BufferStretchX + Camera->x;
+        event.y = GET_Y_LPARAM(lParam) * BufferStretchY + Camera->y;
         event.flags = LOWORD(wParam);
         event.deltaWheel = GET_WHEEL_DELTA_WPARAM(wParam);
+        userDispatch = !JGGetMouseHoverControl();
         break;
     case WM_MOUSEMOVE:
         event.id = JGEVENT_MOUSEMOVED;
-        event.x = GET_X_LPARAM(lParam);
-        event.y = GET_Y_LPARAM(lParam);
+        event.x = GET_X_LPARAM(lParam) * BufferStretchX + Camera->x;
+        event.y = GET_Y_LPARAM(lParam) * BufferStretchY + Camera->y;
         event.dx = event.x - prevX;
         event.dy = event.y - prevY;
         prevX = event.x;
         prevY = event.y;
         event.flags = LOWORD(wParam);
+        userDispatch = !JGGetMouseHoverControl();
         break;
     default:
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
-    if(JGDispatchEvent(event.id, &event) != JGCONSUME && !JGGetMouseOverControl())
+    if(JGDispatchEvent(event.id, &event) != JGCONSUME && userDispatch)
         JGEvent(&event);
     return 0;
 }
