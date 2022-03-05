@@ -36,7 +36,7 @@ void JGSetRect(JGRECT*, int32_t, int32_t, int32_t, int32_t);
 void JGMoveRect(JGRECT*, int32_t, int32_t);
 void JGResizeRect(JGRECT*, int32_t, int32_t);
 bool JGRectContains(const JGRECT*, const JGPOINT*);
-bool JGRectsIntersect(const JGRECT*, const JGRECT*);
+bool JGRectIntersect(const JGRECT*, const JGRECT*);
 bool JGRectIntersection(const JGRECT*, const JGRECT*, JGRECT*);
 
 #define JGSetEll JGSetRect

@@ -6,12 +6,62 @@ char LoadStates[9];
 
 HCURSOR Cursor;
 
-HCURSOR JGGetCursor(void)
+JGCURSOR JGGetCursor(void)
 {
     return Cursor;
 }
 
-HCURSOR JGLoadCursor(cursor_t type)
+JGCURSOR JGCreateCursor(JGIMAGE image, int hotspotX, int hotspotY, int width, int height)
+{
+    ICONINFO ii;
+    HBITMAP andOldHBmp, xorOldHBmp, imageOldHBmp;
+    HBITMAP imageHBmp;
+    BITMAP bmp;
+    HBITMAP imageMask, andMask;
+    int x, y;
+    COLORREF pixel;
+    HDC hdc, andDc, xorDc;
+    HDC imageDc;
+    hdc = GetDC(NULL);
+    andDc = CreateCompatibleDC(hdc);
+    andOldHBmp = SelectObject(andDc, andMask = CreateCompatibleBitmap(hdc, width, height));
+    xorDc = CreateCompatibleDC(hdc);
+    xorOldHBmp = SelectObject(xorDc, imageMask = CreateCompatibleBitmap(hdc, width, height));
+    imageDc = CreateCompatibleDC(hdc);
+    bmp.bmBits = image->pixels;
+    bmp.bmWidth = width;
+    bmp.bmHeight = height;
+    bmp.bmPlanes = 1;
+    bmp.bmBitsPixel = 32;
+    imageHBmp = CreateBitmapIndirect(&bmp);
+    imageOldHBmp = SelectObject(imageDc, imageHBmp);
+    if(width != image->width || height != image->height)
+        StretchBlt(xorDc, 0, 0, width, height, imageDc, 0, 0, image->width, image->height, SRCCOPY);
+    else
+        BitBlt(xorDc, 0, 0, width, height, imageDc, 0, 0, SRCCOPY);
+    for(x = 0; x < width; x++)
+    for(y = 0; y < height; y++)
+    {
+        pixel = GetPixel(xorDc, x, y);
+        SetPixel(andDc, x, y, pixel ? 0 : 0xFFFFFF);
+    }
+    SelectObject(andDc, andOldHBmp);
+    SelectObject(xorDc, xorOldHBmp);
+    SelectObject(imageDc, imageOldHBmp);
+    DeleteDC(andDc);
+    DeleteDC(xorDc);
+    DeleteDC(imageDc);
+    DeleteObject(imageHBmp);
+    ReleaseDC(NULL, hdc);
+    ii.fIcon = FALSE;
+    ii.xHotspot = hotspotX;
+    ii.yHotspot = hotspotY;
+    ii.hbmMask = andMask;
+    ii.hbmColor = imageMask;
+    return CreateIconIndirect(&ii);
+}
+
+JGCURSOR JGLoadCursor(cursor_t type)
 {
     if(!LoadStates[type])
     {
@@ -184,40 +234,40 @@ HCURSOR JGLoadCursor(cursor_t type)
         case JGCURSOR_LD_RU:
         {
             BYTE andPlane[] = {
-                0b11111111, 0b00000011,
-                0b11111111, 0b00000001,
-                0b11111111, 0b00000001,
-                0b11111111, 0b00000001,
+                0b11111111, 0b11000000,
+                0b11111111, 0b10000000,
+                0b11111111, 0b10000000,
+                0b11111111, 0b10000000,
                 0b11111111, 0b00000000,
-                0b01111111, 0b00000000,
-                0b00111111, 0b10000000,
-                0b00011111, 0b11110000,
-                0b00001111, 0b11111000,
-                0b00000001, 0b11111100,
-                0b00000000, 0b11111110,
+                0b11111110, 0b00000000,
+                0b11111100, 0b00000001,
+                0b11111000, 0b00001111,
+                0b11110000, 0b00011111,
+                0b10000000, 0b00111111,
+                0b00000000, 0b01111111,
                 0b00000000, 0b11111111,
-                0b10000000, 0b11111111,
-                0b10000000, 0b11111111,
-                0b10000000, 0b11111111,
-                0b11000000, 0b11111111,
+                0b00000001, 0b11111111,
+                0b00000001, 0b11111111,
+                0b00000001, 0b11111111,
+                0b00000011, 0b11111111,
             };
             BYTE xorPlane[] = {
-                0b00000000, 0b11111100,
-                0b00000000, 0b10000010,
-                0b00000000, 0b10000010,
-                0b00000000, 0b10000010,
+                0b00000000, 0b00111111,
+                0b00000000, 0b01000001,
+                0b00000000, 0b01000001,
+                0b00000000, 0b01000001,
                 0b00000000, 0b10000001,
-                0b10000000, 0b10000000,
-                0b01000000, 0b01110000,
-                0b00100000, 0b00001000,
-                0b00010000, 0b00000100,
-                0b00001110, 0b00000010,
                 0b00000001, 0b00000001,
+                0b00000010, 0b00001110,
+                0b00000100, 0b00010000,
+                0b00001000, 0b00100000,
+                0b01110000, 0b01000000,
+                0b10000000, 0b10000000,
                 0b10000001, 0b00000000,
-                0b01000001, 0b00000000,
-                0b01000001, 0b00000000,
-                0b01000001, 0b00000000,
-                0b00111111, 0b00000000,
+                0b10000010, 0b00000000,
+                0b10000010, 0b00000000,
+                0b10000010, 0b00000000,
+                0b11111100, 0b00000000,
             };
             PredefinedCursors[type] = CreateCursor(NULL, 8, 8, 16, 16, andPlane, xorPlane);
             break;
@@ -392,7 +442,7 @@ HCURSOR JGLoadCursor(cursor_t type)
     return PredefinedCursors[type];
 }
 
-void JGSetCursor(cursor_t type)
+void JGSetCursor(JGCURSOR cursor)
 {
-    Cursor = JGLoadCursor(type);
+    Cursor = cursor;
 }

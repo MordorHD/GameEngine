@@ -26,9 +26,9 @@ typedef struct {
 char *JGToken_Next(char*, JGTOKEN*);
 char *JGToken_ReadType(char*, token_t, JGTOKEN*);
 
-#define JGToken_ReadIdentf(text, tok) ReadTokenType(text, TT_IDENTIFIER, tok)
-#define JGToken_ReadString(text, tok) ReadTokenType(text, TT_STRING, tok)
-#define JGToken_ReadNumber(text, tok) ReadTokenType(text, TT_INT, tok)
+#define JGToken_ReadIdentf(text, tok) JGToken_ReadType(text, TT_IDENTIFIER, tok)
+#define JGToken_ReadString(text, tok) JGToken_ReadType(text, TT_STRING, tok)
+#define JGToken_ReadNumber(text, tok) JGToken_ReadType(text, TT_INT, tok)
 
 #endif // __JGTOKEN_H__
 

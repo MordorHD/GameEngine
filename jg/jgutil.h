@@ -9,9 +9,9 @@ int JGUtil_Strcmp0(const char*, int, const char*);
 char *JGUtil_Createstrcpy(const char*, int);
 char *JGUtil_Createstrcpy0(const char*);
 
-typedef struct {
+typedef struct ListTag {
     void *elems;
-    int elemCount;
+    int count;
     int capacity;
     uint32_t elemSize;
 } JGLIST, JGTABLE, JGINTLIST, JGSTRINGLIST;
@@ -32,6 +32,9 @@ bool JGList_RemoveElemsAtIndex(JGLIST*, int, int);
 void JGList_Clear(JGLIST*);
 typedef bool (*JGLISTENUMERATOR)(void*);
 bool JGList_EnumElems(JGLIST*, JGLISTENUMERATOR);
+#define JGList_Inc(list, a) a += (list)->elemSize
+#define JGList_Dec(list, a) a -= (list)->elemSize
+#define JGList_Get(list, index) ((list)->elems + (list)->elemSize * index)
 
 typedef struct {
     char *entry;

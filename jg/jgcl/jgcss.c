@@ -49,7 +49,7 @@ JGCSS *JGCSS_Read(FILE *file)
                 classBuf[classLen++] = ch;
             while((ch = fgetc(file)) != EOF && ch != '{');
             if(ch != '{')
-                return NULL;
+                goto error;
             i = css->classCount++;
             if(css->classCount > css->classCapacity)
             {
@@ -82,7 +82,7 @@ JGCSS *JGCSS_Read(FILE *file)
                     ch = fgetc(file);
                 }
                 if(ch == EOF)
-                    return NULL;
+                    goto error;
                 classBuf[classLen] = 0;
                 classLen = 0;
                 str = classBuf;
@@ -90,18 +90,18 @@ JGCSS *JGCSS_Read(FILE *file)
                 if(!str)
                     break;
                 if(tok.type != JGTOKEN_CHAR || tok.val != ':')
-                    return NULL;
+                    goto error;
                 cssProp.name = JGUtil_Createstrcpy(classBuf, tok.tokenStart - classBuf);
                 printf("\"%s\" -> ", cssProp.name);
                 if(!(str = JGToken_Next(str, &tok)))
-                    return NULL;
+                    goto error;
                 cssProp.type = tok.type;
                 switch(tok.type)
                 {
                 case JGTOKEN_IDENTIFIER:
                     for(i = 0; i < sizeof(JGVARTABLE) / sizeof(*JGVARTABLE); i++)
                     {
-                        if(!strcmp0(tok.tokenStart, tok.tokenLength, JGVARTABLE[i].name))
+                        if(!JGUtil_Strcmp0(tok.tokenStart, tok.tokenLength, JGVARTABLE[i].name))
                         {
                             cssProp.type = JGVARTABLE[i].type;
                             cssProp.strValue = JGVARTABLE[i].val;
@@ -110,7 +110,7 @@ JGCSS *JGCSS_Read(FILE *file)
                         }
                     }
                     if(i == sizeof(JGVARTABLE) / sizeof(*JGVARTABLE))
-                        return NULL;
+                        goto error;
                     break;
                 case JGTOKEN_STRING: cssProp.strValue = JGUtil_Createstrcpy(tok.tokenStart, tok.tokenLength);
                     printf("%s\n", cssProp.strValue);
@@ -121,7 +121,7 @@ JGCSS *JGCSS_Read(FILE *file)
                     printf("0x%x\n", cssProp.intValue);
                     break;
                 default:
-                    return NULL;
+                    goto error;
                 }
                 i = cssClass->propertyCount++;
                 if(cssClass->propertyCount > cssClass->propertyCapacity)
@@ -136,6 +136,9 @@ JGCSS *JGCSS_Read(FILE *file)
         }
     }
     return css;
+    error:
+        JGCSS_Destroy(css);
+        return NULL;
 }
 
 void JGCSS_Destroy(JGCSS *css)
@@ -169,16 +172,26 @@ void JGCSS_Parse(JGCSS *css)
 {
     JGCONTROLSTYLE style;
     JGCONTROLSTYLE defStyle;
-    string_t pFont;
+    char *pFont;
     char fontBuf[260];
     int fontBufSize;
     int fontSize;
     JGTOKEN tok;
-    JGGetDefaultStyle(&defStyle);
     int cnt = css->classCount;
     JGCSSCLASS *cssClass = css->classes;
     while(cnt--)
     {
+        if(*cssClass->name != '.')
+            defStyle = JGGetClass(cssClass->name)->style;
+        else
+            defStyle = (JGCONTROLSTYLE) {
+                    .name = "Default",
+                    .font = NULL,
+                    .colorText = JGWHITE,
+                    .colorHover = JGGRAY,
+                    .colorBackground = JGDKGRAY,
+                    .colorForeground = JGWHITE,
+                };
         if(!JGCSS_GetProperty(cssClass, "background-color", &style.colorBackground))
             style.colorBackground = defStyle.colorBackground;
         if(!JGCSS_GetProperty(cssClass, "foreground-color", &style.colorForeground))
@@ -218,13 +231,8 @@ void JGCSS_Parse(JGCSS *css)
             style.font = defStyle.font;
         if(*cssClass->name == '.')
             JGAddStyle(cssClass->name + 1, &style);
-        else if(!strcmp("Default", cssClass->name))
-        {
-            JGSetDefaultStyle(&style);
-            defStyle = style;
-        }
         else
-            JGSetBaseStyle(cssClass->name, &style);
+            JGGetClass(cssClass->name)->style = style;
         cssClass++;
     }
 }
@@ -252,10 +260,10 @@ JGCSSPROPERTY *JGCSS_GetProperty(JGCSSCLASS *cssClass, const char *name, void *d
 {
     int cnt = cssClass->propertyCount;
     JGCSSPROPERTY *props = cssClass->properties;
-    printf("%d, %I64x\n", cnt, props);
+    //printf("%d, %I64x\n", cnt, props);
     while(cnt--)
     {
-        printf("%I64x\n", props->name);
+        //printf("%I64x\n", props->name);
         if(!strcmp(name, props->name))
         {
             if(dest)

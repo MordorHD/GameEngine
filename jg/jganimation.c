@@ -8,22 +8,19 @@ void JGKeyFrame_Init(JGKEYFRAME *keyFrame, time_t duration, void *param, JGKEYFR
     keyFrame->duration = duration;
     keyFrame->param = param;
     keyFrame->handle = handle;
+    keyFrame->nextFrame = NULL;
 }
 
-void JGAnimation_Init(JGANIMATION *animation, const JGKEYFRAME *frames, uint32_t frameCount)
+void JGAnimation_Init(JGANIMATION *animation, JGKEYFRAME *frames)
 {
-    animation->frames = malloc(sizeof(*frames) * frameCount);
-    memcpy(animation->frames, frames, sizeof(*frames) * frameCount);
-    animation->frameCount = frameCount;
-    animation->frameIndex = 0;
+    animation->frames = animation->currentFrame = frames;
 }
 
 bool JGAnimation_Update(JGANIMATION *animation, time_t diff)
 {
     if(!diff)
         return 1;
-    int currentIndex = animation->frameIndex;
-    JGKEYFRAME *currentFrame = animation->frames + currentIndex;
+    JGKEYFRAME *currentFrame = animation->currentFrame;
     time_t runtime = currentFrame->runtime;
     time_t duration = currentFrame->duration;
     if(runtime >= duration)
@@ -32,13 +29,11 @@ bool JGAnimation_Update(JGANIMATION *animation, time_t diff)
     timediff_t overflow = newRuntime - duration;
     while(overflow >= 0)
     {
-        currentFrame->handle(JGKFH_END, duration - runtime, currentIndex, currentFrame);
+        currentFrame->handle(JGKFH_END, duration - runtime, currentFrame);
         currentFrame->runtime = currentFrame->duration;
-        if(animation->frameIndex + 1 == animation->frameCount)
+        if(!(currentFrame = animation->currentFrame = currentFrame->nextFrame))
             return 0;
-        currentIndex = ++animation->frameIndex;
-        currentFrame++;
-        currentFrame->handle(JGKFH_START, 0, currentIndex, currentFrame);
+        currentFrame->handle(JGKFH_START, 0, currentFrame);
         currentFrame->runtime = 0;
         if(!overflow)
             return 1;
@@ -46,22 +41,27 @@ bool JGAnimation_Update(JGANIMATION *animation, time_t diff)
         newRuntime = diff = overflow;
         overflow = newRuntime - duration;
     }
-    currentFrame->handle(JGKFH_TICK, diff, currentIndex, currentFrame);
+    currentFrame->handle(JGKFH_TICK, diff, currentFrame);
     currentFrame->runtime = newRuntime;
     return 1;
 }
 
-static JGANIMATION *ActiveAnimations = NULL;
-static uint32_t ActiveAnimationCount = 0;
+static JGANIMATION *ActiveAnimations;
+static uint32_t ActiveAnimationCount;
+static uint32_t ActiveAnimationCapacity;
 
 void JGAnimation_Play(JGANIMATION *animation)
 {
-    uint32_t newCnt = ActiveAnimationCount + 1;
-    ActiveAnimations = realloc(ActiveAnimations, newCnt * sizeof(*animation));
-    *(ActiveAnimations + ActiveAnimationCount) = *animation;
-    ActiveAnimationCount = newCnt;
+    uint32_t cnt = ActiveAnimationCount++;
+    if(ActiveAnimationCount > ActiveAnimationCapacity)
+    {
+        ActiveAnimationCapacity *= 2;
+        ActiveAnimationCapacity++;
+        ActiveAnimations = realloc(ActiveAnimations, sizeof(*animation) * ActiveAnimationCapacity);
+    }
+    *(ActiveAnimations + cnt) = *animation;
     JGKEYFRAME *currentFrame = animation->frames;
-    currentFrame->handle(JGKFH_START, 0, 0, currentFrame);
+    currentFrame->handle(JGKFH_START, 0, currentFrame);
 }
 
 void JGAnimation_Forward(time_t diff)
@@ -70,7 +70,12 @@ void JGAnimation_Forward(time_t diff)
     JGANIMATION *animation = ActiveAnimations;
     while(cnt--)
     {
-        JGAnimation_Update(animation, diff);
+        if(!JGAnimation_Update(animation, diff))
+        {
+            memmove(animation, animation + 1, sizeof(*animation) * cnt);
+            ActiveAnimationCount--;
+            continue;
+        }
         animation++;
     }
 }

@@ -1,6 +1,6 @@
 #include "jgutil.h"
-#include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 
 int JGUtil_Strcasecmp0(const char *str, int len, const char *str0)
 {
@@ -48,7 +48,7 @@ char *JGUtil_Createstrcpy0(const char *str0)
 void JGList_Init(JGLIST *list, int initialCapacity, uint32_t elemSize)
 {
     list->elems = initialCapacity ? malloc(initialCapacity * elemSize) : NULL;
-    list->elemCount = 0;
+    list->count = 0;
     list->capacity = initialCapacity;
     list->elemSize = elemSize;
 }
@@ -56,11 +56,11 @@ void JGList_Init(JGLIST *list, int initialCapacity, uint32_t elemSize)
 bool JGList_SetCapacity(JGLIST *list, int capacity)
 {
     const int elemSize = list->elemSize;
-    const int cnt = list->elemCount;
+    const int cnt = list->count;
     list->elems = realloc(list->elems, capacity * elemSize);
-    if(cnt > capacity)
+    if(capacity > cnt)
     {
-        list->elemCount = capacity;
+        list->count = capacity;
         return 1;
     }
     return 0;
@@ -75,15 +75,16 @@ static void CheckCapacity(JGLIST *list, int addCnt, int newCnt, uint32_t elemSiz
         capacity += addCnt;
         list->capacity = capacity;
         capacity *= elemSize;
-        list->elems = realloc(list->elems, capacity * elemSize);
+        list->elems = realloc(list->elems, capacity);
     }
 }
 
 void *JGList_AddElem(JGLIST * restrict list, const void * restrict elem)
 {
     const uint32_t elemSize = list->elemSize;
-    const int cnt = list->elemCount;
-    const int newCnt = list->elemCount = cnt + 1;
+    const int cnt = list->count;
+    const int newCnt = list->count = cnt + 1;
+    //printf("ADDING ELEM: %d of probably size %d\n", elem, elemSize);
     CheckCapacity(list, 1, newCnt, elemSize);
     return memcpy(list->elems + cnt * elemSize, elem, elemSize);
 }
@@ -91,8 +92,8 @@ void *JGList_AddElem(JGLIST * restrict list, const void * restrict elem)
 void *JGList_AddElems(JGLIST * restrict list, int elemCnt, const void * restrict elems)
 {
     const uint32_t elemSize = list->elemSize;
-    const int cnt = list->elemCount;
-    const int newCnt = list->elemCount = cnt + elemCnt;
+    const int cnt = list->count;
+    const int newCnt = list->count = cnt + elemCnt;
     CheckCapacity(list, elemCnt, newCnt, elemSize);
     return memcpy(list->elems + cnt * elemSize, elems, elemCnt * elemSize);
 }
@@ -100,8 +101,8 @@ void *JGList_AddElems(JGLIST * restrict list, int elemCnt, const void * restrict
 void *JGList_InsertElem(JGLIST *list, int index, const void *elem)
 {
     const uint32_t elemSize = list->elemSize;
-    const int cnt = list->elemCount;
-    const int newCnt = list->elemCount = cnt + 1;
+    const int cnt = list->count;
+    const int newCnt = list->count = cnt + 1;
     CheckCapacity(list, 1, newCnt, elemSize);
     void *elems = list->elems;
     elems += index * elemSize;
@@ -112,8 +113,8 @@ void *JGList_InsertElem(JGLIST *list, int index, const void *elem)
 void *JGList_InsertElems(JGLIST * restrict list, int index, int elemCnt, const void * restrict elems)
 {
     const uint32_t elemSize = list->elemSize;
-    const int cnt = list->elemCount;
-    const int newCnt = list->elemCount = cnt + elemCnt;
+    const int cnt = list->count;
+    const int newCnt = list->count = cnt + elemCnt;
     CheckCapacity(list, elemCnt, newCnt, elemSize);
     void *newElems = list->elems;
     newElems += cnt * elemSize;
@@ -129,12 +130,12 @@ inline void *JGList_ElemAt(JGLIST *list, int index)
 int JGList_IndexOf(JGLIST *list, const void *elem)
 {
     const uint32_t elemSize = list->elemSize;
-    register int cnt = list->elemCount;
+    register int cnt = list->count;
     register void *elems = list->elems;
     while(cnt--)
     {
         if(!memcmp(elems, elem, elemSize))
-            return list->elemCount - cnt;
+            return list->count - cnt;
         elems += elemSize;
     }
     return -1;
@@ -161,31 +162,33 @@ inline bool JGList_RemoveElemAtIndex(JGLIST *list, int index)
 bool JGList_RemoveElemsAtIndex(JGLIST *list, int index, int removeCnt)
 {
     const uint32_t elemSize = list->elemSize;
-    const int cnt = list->elemCount;
+    const int cnt = list->count;
     const int newCnt = cnt - removeCnt;
     if(newCnt < 0)
     {
         free(list->elems);
         list->elems = NULL;
-        list->elemCount = 0;
+        list->count = 0;
+        list->capacity = 0;
         return 0;
     }
     void *elems = list->elems + index * elemSize;
     memmove(elems, elems + removeCnt * elemSize, (newCnt - index) * elemSize);
-    list->elemCount = newCnt;
+    list->count = newCnt;
     return 1;
 }
 
 void JGList_Clear(JGLIST *list)
 {
     free(list->elems);
-    list->elemCount = 0;
+    list->count = 0;
+    list->capacity = 0;
 }
 
 bool JGList_EnumElems(JGLIST *list, JGLISTENUMERATOR er)
 {
     const uint32_t elemSize = list->elemSize;
-    register int cnt = list->elemCount;
+    register int cnt = list->count;
     register void *elems = list->elems;
     while(cnt--)
     {
@@ -217,12 +220,12 @@ void JGTable_InsertEntry(JGTABLE *table, int index, char *entry, const void *ele
 int JGTable_IndexOf(const JGTABLE *table, const char *entry)
 {
     const uint32_t elemSize = table->elemSize;
-    register int cnt = table->elemCount;
+    register int cnt = table->count;
     register void *entries = table->elems;
     while(cnt)
     {
         if(!strcmp(*(char**) entries, entry))
-            return table->elemCount - cnt;
+            return table->count - cnt;
         entries += elemSize;
         cnt--;
     }

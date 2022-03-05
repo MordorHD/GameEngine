@@ -137,7 +137,7 @@ static inline JGIMAGE JGLoadPNG(FILE *fp)
             fread(colorPalette, 1, chunkSize, fp);
             break;
         case PNG_CHK_IEND:
-            return JGCreateImage(header.width, header.height, pixels);
+            return JGCreateImage(header.width, header.height, (color_t*) pixels);
         default:
             if(isCapital)
                 goto error;
@@ -152,61 +152,50 @@ static inline JGIMAGE JGLoadPNG(FILE *fp)
         return NULL;
 }
 
-JGIMAGE JGLoadImage(const char *filePath, bool flip)
+JGIMAGE JGLoadImage(const char *filePath)
 {
-    FILE *fp = fopen(filePath, "rb");
-    if(!fp)
-        return NULL;
+    // FILE *fp = fopen(filePath, "rb");
+    // if(!fp)
+    //    return NULL;
     JGIMAGE image;
-    uint8_t header[10];
-    int i;
+    // uint8_t header[10];
     int w, h;
     int c;
-    color_t *pixelsIn, *pixelsOut, *pPixelsOut, *pPixelsIn;
+    uint8_t *pixelsIn, *basePixelsIn;
+    color_t *pixelsOut, *basePixelsOut;
     color_t rgb;
-    int pp;
+    int comp;
     unsigned char b;
-    fread(header, 1, 10, fp);
-    fseek(fp, 0, SEEK_SET);
-    header[6] = 0;
-    if(header[0] == 'B' &&
-       header[1] == 'M')
-        image = JGLoadBitmap(fp);
-    else
-        /*if(header[0] == 0x89 &&
-            header[1] == 'P' &&
-            header[2] == 'N' &&
-            header[3] == 'G')*/
+    // fread(header, 1, 10, fp);
+    // fseek(fp, 0, SEEK_SET);
+    // header[6] = 0;
+    if((pixelsIn = stbi_load(filePath, &w, &h, &comp, 0)))
     {
-        pixelsIn = stbi_load(filePath, &w, &h, &pp, 0);
-        if(pixelsIn)
+        if(comp != 4)
+            pixelsOut = basePixelsOut = malloc(4 * w * h);
+        else
+            pixelsOut = basePixelsOut = (color_t*) pixelsIn;
+        c = w * h;
+        basePixelsIn = pixelsIn;
+        while(c--)
         {
-            if(pp != 4)
-                pixelsOut = pPixelsOut = malloc(4 * w * h);
-            else
-                pixelsOut = pPixelsOut = pixelsIn;
-            c = w * h;
-            pPixelsIn = pixelsIn;
-            while(c--)
+            switch(comp)
             {
-                switch(pp)
-                {
-                case 3: rgb = 0xFF000000 | *pPixelsIn; break;
-                case 4: rgb = *pPixelsIn; break;
-                }
-                b = rgb & 0xFF;
-                rgb = (rgb & 0xFFFFFF00) | ((rgb & 0x00FF0000) >> 16);
-                rgb = (rgb & 0xFF00FFFF) | (b << 16);
-                *(pPixelsOut++) = rgb;
-                pPixelsIn = (void*) pPixelsIn + pp;
+            case STBI_grey: rgb = 0xFF000000 | (*pixelsIn << 16) | (*pixelsIn << 8) | *pixelsIn;  break;
+            case STBI_grey_alpha: rgb = (*(pixelsIn + 1) << 24) | (*pixelsIn << 16) | (*pixelsIn << 8) | *pixelsIn;  break;
+            case STBI_rgb: rgb = 0xFF000000 | *((color_t*) pixelsIn); break;
+            case STBI_rgb_alpha: rgb = *((color_t*) pixelsIn); break;
             }
-            if(pp != 4)
-                free(pixelsIn);
-            image = JGCreateImage(w, h, pixelsOut);
+            b = rgb & 0xFF;
+            rgb = (rgb & 0xFFFFFF00) | ((rgb & 0x00FF0000) >> 16);
+            rgb = (rgb & 0xFF00FFFF) | (b << 16);
+            *(pixelsOut++) = rgb;
+            pixelsIn += comp;
         }
+        if(comp != 4)
+            free(basePixelsIn);
+        return JGCreateImage(w, h, basePixelsOut);
     }
-    //else
-    //    image = NULL;
-    fclose(fp);
-    return image;
+    // fclose(fp);
+    return NULL;
 }
