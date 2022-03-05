@@ -2,59 +2,116 @@
 
 #include <string.h>
 
-char *JGGetString(JGTEXT *text, char * restrict buf, int bufLen)
+char *JGText_Get(JGTEXT *text, char * restrict buf, int bufLen)
 {
-    if(buf == NULL || bufLen == 0)
+    int len;
+    if(buf == NULL || !bufLen)
         return NULL;
-    int len = bufLen <= text->length ? bufLen - 1 : text->length;
+    len = bufLen <= text->length ? bufLen - 1 : text->length;
     memcpy(buf, text->text, len);
     buf[len] = 0;
     return buf;
 }
 
-bool JGSetString(JGTEXT *text, string_t str)
+bool JGText_Set0(JGTEXT *text, string_t str)
 {
-    int len;
-    if(str && (len = strlen(str)))
+    if(!str)
     {
+        free(text->text);
+        text->length = text->capacity = 0;
+        return 0;
+    }
+    return JGText_Set(text, str, strlen(str));
+}
+
+bool JGText_Set(JGTEXT *text, string_t str, int len)
+{
+    if(str)
+    {
+        if(text->capacity < len)
+            text->text = realloc(text->text, len);
         text->length = text->capacity = len;
-        strcpy(text->text = malloc(len), str);
+        memcpy(text->text, str, len);
         return 1;
     }
-    text->capacity = 12;
-    text->length = 0;
-    text->text = NULL;
+    if(!len)
+    {
+        free(text->text);
+        text->length = text->capacity = 0;
+    }
+    else if(text->capacity < len)
+    {
+        free(text->text);
+        text->capacity = len;
+        text->length = 0;
+        text->text = malloc(len);
+    }
     return 0;
 }
 
-bool JGAppendString(JGTEXT *text, string_t apd)
+bool JGText_AppendString0(JGTEXT *text, string_t apd)
 {
-    return JGInsertString(text, apd, text->length);
+    return JGText_InsertString(text, apd, strlen(apd), text->length);
 }
 
-bool JGInsertString(JGTEXT *text, string_t ins, int index)
+bool JGText_AppendString(JGTEXT *text, string_t apd, int len)
 {
-    int len;
-    if(ins == NULL || !(len = strlen(ins)))
-        return 0;
-    int textLen = text->length;
-    int newLen = textLen + len;
-    if(newLen > text->capacity)
+    return JGText_InsertString(text, apd, len, text->length);
+}
+
+bool JGText_InsertChar(JGTEXT *text, char ch, int index)
+{
+    char *txt;
+    int textLen = text->length++;
+    if(text->length > text->capacity)
     {
-        text->text = realloc(text->text, len + (text->capacity *= 2));
-        text->length = newLen;
+        text->capacity *= 2;
+        text->capacity++;
+        text->text = realloc(text->text, text->capacity);
     }
-    memmove(text->text + index + len, text->text + index, textLen - index);
-    memcpy(text->text + index, ins, len);
+    txt = text->text + index;
+    memmove(txt + 1, txt, textLen - index);
+    *(text->text + index) = ch;
     return 1;
 }
 
-bool JGRemoveCharAt(JGTEXT *text, int index)
+bool JGText_AppendChar(JGTEXT *text, char ch)
 {
-    return JGRemoveRangeAt(text, index, 1);
+    return JGText_InsertChar(text, ch, text->length);
 }
 
-bool JGRemoveRangeAt(JGTEXT *text, int fromIndex, int removeLen)
+bool JGText_InsertString0(JGTEXT *text, string_t ins, int index)
+{
+    return JGText_InsertString(text, ins, strlen(ins), index);
+}
+
+bool JGText_InsertString(JGTEXT *text, string_t ins, int len, int index)
+{
+    char *txt;
+    int textLen;
+    if(!len)
+        return 0;
+    textLen = text->length;
+    text->length += len;
+    if(text->length > text->capacity)
+    {
+        text->capacity *= 2;
+        text->capacity += len;
+        text->text = realloc(text->text, text->capacity);
+    }
+    txt = text->text + index;
+    memmove(txt + len, txt, textLen - index);
+    if(ins)
+        memcpy(txt, ins, len);
+    return 1;
+}
+
+bool JGText_RemoveCharAt(JGTEXT *text, int index)
+{
+    return JGText_RemoveRangeAt(text, index, 1);
+}
+
+bool JGText_RemoveRangeAt(JGTEXT *text, int fromIndex, int removeLen)
 {
     if(!removeLen)
         return 0;
@@ -63,7 +120,7 @@ bool JGRemoveRangeAt(JGTEXT *text, int fromIndex, int removeLen)
     return 1;
 }
 
-int JGFindChar(JGTEXT *text, char ch, int fromIndex)
+int JGText_FindChar(JGTEXT *text, char ch, int fromIndex)
 {
     char *str = text->text + fromIndex;
     int len = text->length - fromIndex;
@@ -73,10 +130,11 @@ int JGFindChar(JGTEXT *text, char ch, int fromIndex)
     return -1;
 }
 
-static inline int JGFindString0(char *restrict str, int len, string_t restrict find, int findLen, int fromIndex)
+static inline int _JGText_FindString(char *restrict str, int len, string_t restrict find, int findLen, int fromIndex)
 {
-    int sLen = len;
-    int matchCnt = 0;
+    int sLen, matchCnt;
+    sLen = len;
+    matchCnt = 0;
     while(len--)
     {
         if(*(find + matchCnt) == *str)
@@ -85,38 +143,37 @@ static inline int JGFindString0(char *restrict str, int len, string_t restrict f
             if(matchCnt == findLen)
                 return sLen - len - matchCnt;
         }
-        else if(matchCnt != 0)
+        else if(matchCnt)
         {
-            if(*find == *str)
-                matchCnt = 1;
-            else
-                matchCnt = 0;
+            matchCnt = *find == *str;
         }
         str++;
     }
     return -1;
 }
 
-int JGFindString(JGTEXT *text, string_t restrict find, int fromIndex)
+int JGText_FindString(JGTEXT *text, string_t restrict find, int fromIndex)
 {
     int fLen;
-    if(find == NULL || !(fLen = strlen(find)))
+    if(!find || !(fLen = strlen(find)))
         return -1;
-    return JGFindString0(text->text, text->length, find, fLen, fromIndex);
+    return _JGText_FindString(text->text, text->length, find, fLen, fromIndex);
 }
 
-int JGReplaceString(JGTEXT *text, string_t restrict find, int fromIndex, string_t restrict replace)
+int JGText_FindReplaceString(JGTEXT *text, string_t restrict find, int fromIndex, string_t restrict replace)
 {
-    int fLen;
-    if(find == NULL || !(fLen = strlen(find)))
-        return -1;
+    char *txt;
+    int fLen, rLen, aLen;
     int index;
-    if((index = JGFindString0(text->text, text->length, find, fLen, fromIndex)) < 0)
+    if(!find || !(fLen = strlen(find)))
         return -1;
-    int rLen = strlen(replace);
-    int aLen = fLen - rLen;
-    memmove(text->text + index, text->text + index + aLen, text->length - index - aLen);
-    memcpy(text->text + index, replace, rLen);
+    if((index = _JGText_FindString(text->text, text->length, find, fLen, fromIndex)) < 0)
+        return -1;
+    rLen = strlen(replace);
+    aLen = fLen - rLen;
+    txt = text->text + index;
+    memmove(txt, txt + aLen, text->length - index - aLen);
+    memcpy(txt, replace, rLen);
     text->length -= aLen;
     return index;
 }

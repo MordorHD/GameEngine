@@ -536,8 +536,8 @@ static unsigned char *convert_format(unsigned char *data, int img_n, int req_com
       unsigned char *src  = data + j * x * img_n   ;
       unsigned char *dest = good + j * x * req_comp;
 
-      #define COMBO(a,b)  ((a)*8+(b))
-      #define CASE(a,b)   case COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
+      #define COMBO(a,b) ((a)*8+(b))
+      #define CASE(a,b) case COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
       // convert source image with img_n components to one with req_comp components;
       // avoid switch per pixel, so use switch per scanline and massive macros
       switch (COMBO(img_n, req_comp)) {
@@ -2187,8 +2187,7 @@ static int create_png_image_raw(png *a, stbi__uint8 *raw, stbi__uint32 raw_len, 
          assert(img_n+1 == out_n);
          #define CASE(f) \
              case f:     \
-                for (i=x-1; i >= 1; --i, cur[img_n]=255,raw+=img_n,cur+=out_n,prior+=out_n) \
-                   for (k=0; k < img_n; ++k)
+                for (i=x-1; i >= 1; --i, cur[img_n]=255,raw+=img_n,cur+=out_n,prior+=out_n) for (k=0; k < img_n; ++k)
          switch (filter) {
             CASE(F_none)  cur[k] = raw[k]; break;
             CASE(F_sub)   cur[k] = raw[k] + cur[k-out_n]; break;

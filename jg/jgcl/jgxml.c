@@ -5,7 +5,7 @@
 
 static inline _Bool DecodeNode(char *str, JGXMLNODE *node)
 {
-    printf("Decoding node: %s\n", str);
+    // printf("Decoding node: %s\n", str);
     JGTOKEN tok;
     JGXMLATTRIBUTE *attr;
     if(!(str = JGToken_Next(str, &tok)) || tok.type != JGTOKEN_IDENTIFIER)
@@ -17,7 +17,7 @@ static inline _Bool DecodeNode(char *str, JGXMLNODE *node)
     node->nodes = NULL;
     node->nodeCount = 0;
     node->nodeCapacity = 0;
-    printf("\tNode name: %s\n", node->name);
+    // printf("\tNode name: %s\n", node->name);
     if(!(str = JGToken_Next(str, &tok)) || tok.type != JGTOKEN_IDENTIFIER)
         return 1;
     while(tok.type == JGTOKEN_IDENTIFIER)
@@ -31,24 +31,26 @@ static inline _Bool DecodeNode(char *str, JGXMLNODE *node)
         }
         attr = node->attributes + node->attributeCount - 1;
         attr->name = JGUtil_Createstrcpy(tok.tokenStart, tok.tokenLength);
-        printf("\tNode attribute name: %s\n", attr->name);
+        // printf("\tNode attribute name: %s\n", attr->name);
         if(!(str = JGToken_Next(str, &tok)) || tok.type != JGTOKEN_CHAR || tok.val != '=' || !(str = JGToken_Next(str, &tok)))
         {
+            free(node->name);
             free(attr->name);
+            free(node->attributes);
             return 0;
         }
         attr->type = tok.type;
-        printf("\tNode attribute type: %d\n", attr->type);
+        // printf("\tNode attribute type: %d\n", attr->type);
         switch(tok.type)
         {
         case JGTOKEN_STRING: attr->strValue = JGUtil_Createstrcpy(tok.tokenStart, tok.tokenLength);
-            printf("\tNode attribute value: %s\n", attr->strValue);
+            // printf("\tNode attribute value: %s\n", attr->strValue);
             break;
         case JGTOKEN_NUMBER: attr->intValue = tok.val;
-            printf("\tNode attribute value: %d\n", attr->intValue);
+            // printf("\tNode attribute value: %d\n", attr->intValue);
             break;
         case JGTOKEN_FLOAT: attr->floatValue = *(float*) &tok.val;
-            printf("\tNode attribute value: %f\n", attr->floatValue);
+            // printf("\tNode attribute value: %f\n", attr->floatValue);
             break;
         case JGTOKEN_CHAR:
             if(tok.val == '-')
@@ -56,11 +58,13 @@ static inline _Bool DecodeNode(char *str, JGXMLNODE *node)
                 if((str = JGToken_Next(str, &tok)))
                 {
                     attr->intValue = -tok.val;
-                    printf("\tNode attribute value: %d\n", attr->intValue);
+                    // printf("\tNode attribute value: %d\n", attr->intValue);
                     break;
                 }
             }
         default:
+            free(node->name);
+            free(attr->name);
             free(node->attributes);
             return 0;
         }
@@ -138,14 +142,16 @@ static inline JGXMLNODE *ReadNode(FILE *fp)
             }
             *(path + (pathCnt - 1)) = child;
             if(!DecodeNode(nodeBuf, child))
-                return 0;
+                goto error;
             break;
         }
     }
     free(path);
     return source;
     error:
-
+        if(source)
+            JGXML_DestroyNode(source);
+        free(path);
         return NULL;
 }
 
@@ -233,15 +239,23 @@ static struct {
     const char *name;
     int bit;
 } STRINGTOSTATE[] = {
-    { "transparent", JGSTATE_TRANSPARENT },
-    { "not_draw_bg", JGSTATE_NOTDRAWBG },
-    { "fixed_width", JGSTATE_FIXEDWIDTH },
-    { "fixed_height", JGSTATE_FIXEDHEIGHT },
-    { "fixed_size", JGSTATE_FIXEDSIZE },
-    { "cornered", JGSTATE_CORNERED },
-    { "invisible", JGSTATE_INVISIBLE },
-    { "borderless", JGSTATE_BORDERLESS },
-    { "xbutton", JGSTATE_XBUTTON },
+    { "transparent", JGSTYLE_TRANSPARENT },
+    { "not_draw_bg", JGSTYLE_NOTDRAWBG },
+    { "fixed_width", JGSTYLE_FIXEDWIDTH },
+    { "fixed_height", JGSTYLE_FIXEDHEIGHT },
+    { "fixed_size", JGSTYLE_FIXEDSIZE },
+    { "cornered", JGSTYLE_CORNERED },
+    { "invisible", JGSTYLE_INVISIBLE },
+    { "borderless", JGSTYLE_BORDERLESS },
+    { "xbutton", JGSTYLE_XBUTTON },
+    { "text_left", JGSTYLE_LEFT },
+    { "text_right", JGSTYLE_RIGHT },
+    { "text_hcenter", JGSTYLE_HCENTER },
+    { "text_top", JGSTYLE_TOP },
+    { "text_bottom", JGSTYLE_BOTTOM },
+    { "text_vcenter", JGSTYLE_VCENTER },
+    { "text_centered", JGSTYLE_HCENTER | JGSTYLE_VCENTER },
+    { "text_cornered", JGSTYLE_LEFT | JGSTYLE_TOP },
 };
 
 int StringToState(const char *str, int strLen)
@@ -260,7 +274,7 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
     JGLAYOUT *layout;
     JGGRIDBC gbc;
     JGTOKEN tok;
-    int type, state;
+    int state;
     char *text;
     char *id;
     int x, y, w, h;
@@ -270,24 +284,6 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
     node = parent->nodes;
     while(cnt--)
     {
-        state = 0;
-        if(!strcmp(node->name, "Button"))
-            type = JGTYPE_BUTTON;
-        else if(!strcmp(node->name, "Label"))
-            type = JGTYPE_STATIC;
-        else if(!strcmp(node->name, "Slider"))
-            type = JGTYPE_SLIDER;
-        else if(!strcmp(node->name, "Window"))
-            type = JGTYPE_WINDOW;
-        else if(!strcmp(node->name, "Group"))
-            type = JGTYPE_GROUP;
-        else if(!strcmp(node->name, "Image"))
-            type = JGTYPE_IMAGEVIEW;
-        else
-        {
-            node++;
-            continue;
-        }
         state = 0;
         if(JGXML_GetAttribute(node, "state", &text))
         {
@@ -313,10 +309,10 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
         h -= y;
         if(!JGXML_GetAttribute(node, "id", &id))
             id = NULL;
-        control = JGCreateControl(type, id, NULL, state, text, x, y, w, h);
+        control = JGCreateControl(node->name, id, state, text, x, y, w, h);
         if(cParent)
         {
-            layout = &(((JGGROUP) cParent)->layout);
+            layout = JGGetLayout(cParent);
             if(layout->type == JGLAYOUT_GRIDBAG)
             {
                 if(!JGXML_GetAttribute(node, "gridX", &gbc.gridX))
@@ -327,8 +323,9 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
                     gbc.gridWidth = 1;
                 if(!JGXML_GetAttribute(node, "gridHeight", &gbc.gridHeight))
                     gbc.gridHeight = 1;
-                printf("Adding layout comp: %d, %d, %d, %d\n", gbc.gridX, gbc.gridY, gbc.gridWidth, gbc.gridHeight);
-                JGGridBagLayout_AddLayoutControl(cParent, control, &gbc);
+                gbc.partner = control;
+                // printf("Adding layout comp: %d, %d, %d, %d\n", gbc.gridX, gbc.gridY, gbc.gridWidth, gbc.gridHeight);
+                JGGridBagLayout_AddLayoutControl(cParent, &gbc);
             }
         }
         if(JGXML_GetAttribute(node, "layout", &text))
@@ -341,11 +338,8 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
                 state = JGLAYOUT_GRIDBAG;
             JGSetLayout(control, state);
         }
-        if(type == JGTYPE_GROUP || type == JGTYPE_WINDOW)
-        {
-            ParseNodes(control, node);
-            JGRelayout(control);
-        }
+        ParseNodes(control, node);
+        JGRelayout(control);
         if(cParent)
             JGAddChildControl(cParent, control);
         else
@@ -357,4 +351,29 @@ static void ParseNodes(JGCONTROL cParent, JGXMLNODE *parent)
 void JGXML_ParseNodes(JGXMLNODE *parent)
 {
     ParseNodes(NULL, parent);
+}
+
+JGXMLNODE *_JGXML_SearchNode(JGXMLNODE *nodes, int nodeCnt, const char *id, JGXMLNODE *dest)
+{
+    JGXMLATTRIBUTE *attr;
+    JGXMLNODE *sub;
+    while(nodeCnt--)
+    {
+        if((attr = JGXML_GetAttribute(nodes, "id", NULL)))
+            if(!strcmp(id, attr->strValue))
+            {
+                if(dest)
+                    *dest = *nodes;
+                return nodes;
+            }
+        if((sub = _JGXML_SearchNode(nodes->nodes, nodes->nodeCount, id, dest)))
+            return sub;
+        nodes++;
+    }
+    return NULL;
+}
+
+JGXMLNODE *JGXML_GetNodeByID(JGXMLNODE *node, const char *id, JGXMLNODE *dest)
+{
+    return _JGXML_SearchNode(node->nodes, node->nodeCount, id, dest);
 }

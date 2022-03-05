@@ -20,24 +20,25 @@ typedef enum {
 
 struct keyframe;
 
-typedef jgar_t (*JGKEYFRAMEHANDLE)(jgam_t, time_t, uint32_t, struct keyframe*);
+typedef jgar_t (*JGKEYFRAMEHANDLE)(jgam_t, time_t, struct keyframe*);
 
 typedef struct keyframe {
     time_t runtime;
     time_t duration;
     void *param;
+    struct keyframe *nextFrame;
     JGKEYFRAMEHANDLE handle;
 } JGKEYFRAME;
 
 void JGKeyFrame_Init(JGKEYFRAME*, time_t, void*, JGKEYFRAMEHANDLE);
+#define JGKeyFrame_Join(k1, k2) (k1)->nextFrame=(k2)
 
 typedef struct {
     JGKEYFRAME *frames;
-    uint32_t frameCount;
-    uint32_t frameIndex;
+    JGKEYFRAME *currentFrame;
 } JGANIMATION;
 
-void JGAnimation_Init(JGANIMATION*, const JGKEYFRAME*, uint32_t);
+void JGAnimation_Init(JGANIMATION*, JGKEYFRAME*);
 void JGAnimation_Play(JGANIMATION*);
 void JGAnimation_Expell(JGANIMATION*);
 bool JGAnimation_Update(JGANIMATION*, time_t);

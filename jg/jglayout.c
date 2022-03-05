@@ -24,18 +24,18 @@ static void JGFlowLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const JG
     while(cnt--)
     {
         control = *(chn++);
-        switch(control->state & JGSTATE_FIXEDSIZE)
+        switch(control->state & JGSTYLE_FIXEDSIZE)
         {
-        case JGSTATE_FIXEDSIZE:
-        case JGSTATE_FIXEDHEIGHT:
-            if((control->state & JGSTATE_CORNERED))
+        case JGSTYLE_FIXEDSIZE:
+        case JGSTYLE_FIXEDHEIGHT:
+            if((control->state & JGSTYLE_CORNERED))
             {
                 width -= control->bottom - control->top;
                 *pWidths = control->bottom - control->top;
                 break;
             }
         case 0:
-        case JGSTATE_FIXEDWIDTH:
+        case JGSTYLE_FIXEDWIDTH:
             *pWidths = -1;
             notFixedCnt++;
             break;
@@ -57,15 +57,15 @@ static void JGFlowLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const JG
         maxRect.bottom -= control->insets.bottom;
         if(width < 0)
         {
-            switch(control->state & JGSTATE_FIXEDSIZE)
+            switch(control->state & JGSTYLE_FIXEDSIZE)
             {
             case 0: rect = maxRect; break;
-            case JGSTATE_FIXEDSIZE:
+            case JGSTYLE_FIXEDSIZE:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = rect.left - control->rect.left + control->rect.right;
                 rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dx = maxRect.right  - rect.right;
                     dy = maxRect.bottom - rect.bottom;
@@ -77,12 +77,12 @@ static void JGFlowLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const JG
                     rect.bottom += dy;
                 }
                 break;
-            case JGSTATE_FIXEDWIDTH:
+            case JGSTYLE_FIXEDWIDTH:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = rect.left - control->rect.left + control->rect.right;
                 rect.bottom = maxRect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dx = maxRect.right  - rect.right;
                     dx >>= 1;
@@ -90,12 +90,12 @@ static void JGFlowLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const JG
                     rect.right += dx;
                 }
                 break;
-            case JGSTATE_FIXEDHEIGHT:
+            case JGSTYLE_FIXEDHEIGHT:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = maxRect.right;
                 rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dy = maxRect.bottom - rect.bottom;
                     dy >>= 1;
@@ -137,18 +137,18 @@ static void JGStackLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const J
     while(cnt--)
     {
         control = *(chn++);
-        switch(control->state & JGSTATE_FIXEDSIZE)
+        switch(control->state & JGSTYLE_FIXEDSIZE)
         {
-        case JGSTATE_FIXEDSIZE:
-        case JGSTATE_FIXEDHEIGHT:
-            if((control->state & JGSTATE_CORNERED))
+        case JGSTYLE_FIXEDSIZE:
+        case JGSTYLE_FIXEDHEIGHT:
+            if((control->state & JGSTYLE_CORNERED))
             {
                 height -= control->bottom - control->top;
                 *pHeights = control->bottom - control->top;
                 break;
             }
         case 0:
-        case JGSTATE_FIXEDWIDTH:
+        case JGSTYLE_FIXEDWIDTH:
             *pHeights = -1;
             notFixedCnt++;
             break;
@@ -170,15 +170,15 @@ static void JGStackLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const J
         maxRect.bottom -= control->insets.bottom;
         if(height < 0)
         {
-            switch(control->state & JGSTATE_FIXEDSIZE)
+            switch(control->state & JGSTYLE_FIXEDSIZE)
             {
             case 0: rect = maxRect; break;
-            case JGSTATE_FIXEDSIZE:
+            case JGSTYLE_FIXEDSIZE:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = rect.left - control->rect.left + control->rect.right;
                 rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dx = maxRect.right  - rect.right;
                     dy = maxRect.bottom - rect.bottom;
@@ -190,12 +190,12 @@ static void JGStackLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const J
                     rect.bottom += dy;
                 }
                 break;
-            case JGSTATE_FIXEDWIDTH:
+            case JGSTYLE_FIXEDWIDTH:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = rect.left - control->rect.left + control->rect.right;
                 rect.bottom = maxRect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dx = maxRect.right  - rect.right;
                     dx >>= 1;
@@ -203,12 +203,12 @@ static void JGStackLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const J
                     rect.right += dx;
                 }
                 break;
-            case JGSTATE_FIXEDHEIGHT:
+            case JGSTYLE_FIXEDHEIGHT:
                 rect.left = maxRect.left;
                 rect.top = maxRect.top;
                 rect.right = maxRect.right;
                 rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-                if(!(control->state & JGSTATE_CORNERED))
+                if(!(control->state & JGSTYLE_CORNERED))
                 {
                     dy = maxRect.bottom - rect.bottom;
                     dy >>= 1;
@@ -319,15 +319,15 @@ static void JGGridBagLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const
         maxRect.right -= control->insets.right;
         maxRect.bottom -= control->insets.bottom;
 
-        switch(control->state & JGSTATE_FIXEDSIZE)
+        switch(control->state & JGSTYLE_FIXEDSIZE)
         {
         case 0: rect = maxRect; break;
-        case JGSTATE_FIXEDSIZE:
+        case JGSTYLE_FIXEDSIZE:
             rect.left = maxRect.left;
             rect.top = maxRect.top;
             rect.right = rect.left - control->rect.left + control->rect.right;
             rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-            if(!(control->state & JGSTATE_CORNERED))
+            if(!(control->state & JGSTYLE_CORNERED))
             {
                 dx = maxRect.right  - rect.right;
                 dy = maxRect.bottom - rect.bottom;
@@ -339,12 +339,12 @@ static void JGGridBagLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const
                 rect.bottom += dy;
             }
             break;
-        case JGSTATE_FIXEDWIDTH:
+        case JGSTYLE_FIXEDWIDTH:
             rect.left = maxRect.left;
             rect.top = maxRect.top;
             rect.right = rect.left - control->rect.left + control->rect.right;
             rect.bottom = maxRect.bottom;
-            if(!(control->state & JGSTATE_CORNERED))
+            if(!(control->state & JGSTYLE_CORNERED))
             {
                 dx = maxRect.right  - rect.right;
                 dx >>= 1;
@@ -352,12 +352,12 @@ static void JGGridBagLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const
                 rect.right += dx;
             }
             break;
-        case JGSTATE_FIXEDHEIGHT:
+        case JGSTYLE_FIXEDHEIGHT:
             rect.left = maxRect.left;
             rect.top = maxRect.top;
             rect.right = maxRect.right;
             rect.bottom = rect.top - control->rect.top + control->rect.bottom;
-            if(!(control->state & JGSTATE_CORNERED))
+            if(!(control->state & JGSTYLE_CORNERED))
             {
                 dy = maxRect.bottom - rect.bottom;
                 dy >>= 1;
@@ -374,20 +374,19 @@ static void JGGridBagLayoutFunc(JGLAYOUT *layout, JGCONTROL *chn, int cnt, const
     }
 }
 
-void JGGridBagLayout_AddLayoutControl(JGCONTROL parent, JGCONTROL control, JGGRIDBC *gbc)
+void JGGridBagLayout_AddLayoutControl(JGCONTROL parent, JGGRIDBC *gbc)
 {
-    JGLAYOUT *layout = &(((JGGROUP) parent)->layout);
-    JGGRIDBC *c;
-    int cnt = layout->gbg.gridBcCount++;
+    JGLAYOUT *layout;
+    int cnt;
+    layout = JGGetLayout(parent);
+    cnt = layout->gbg.gridBcCount++;
     if(layout->gbg.gridBcCount > layout->gbg.gridBcCapacity)
     {
         layout->gbg.gridBcCapacity *= 2;
         layout->gbg.gridBcCapacity++;
         layout->gbg.gridBcs = realloc(layout->gbg.gridBcs, sizeof(*layout->gbg.gridBcs) * layout->gbg.gridBcCapacity);
     }
-    c = layout->gbg.gridBcs + cnt;
-    *c = *gbc;
-    c->partner = control;
+    *(layout->gbg.gridBcs + cnt) = *gbc;
 }
 
 bool JGGridBagLayout_RemoveLayoutControl(JGLAYOUT *layout, JGCONTROL control)

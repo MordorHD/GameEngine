@@ -26,6 +26,7 @@ typedef struct _xmlnode {
     struct _xmlnode *nodes;
     int nodeCount;
     int nodeCapacity;
+    void *param;
 } JGXMLDOCUMENT, JGXMLNODE;
 
 JGXMLDOCUMENT *JGXML_Read(FILE*);
@@ -33,6 +34,7 @@ void JGXML_DestroyNode(JGXMLNODE*);
 void JGXML_ParseNodes(JGXMLNODE*);
 JGXMLNODE *JGXML_GetChild(JGXMLNODE*, const char*, JGXMLNODE*);
 JGXMLATTRIBUTE *JGXML_GetAttribute(JGXMLNODE*, const char*, void*);
+JGXMLNODE *JGXML_GetNodeByID(JGXMLNODE*, const char*, JGXMLNODE*);
 
 typedef struct {
     char *name;

@@ -40,7 +40,7 @@ bool JGRectIntersection(const JGRECT *rect1, const JGRECT *rect2, JGRECT *rectDe
     int32_t top    = __max(rect1->top, rect2->top);
     int32_t right  = __min(rect1->right, rect2->right);
     int32_t bottom = __min(rect1->bottom, rect2->bottom);
-    if(right > rect1->left && bottom > rect2->left)
+    if(right > left && bottom > top)
     {
         rectDest->left   = left;
         rectDest->top    = top;
@@ -277,8 +277,8 @@ bool JGEll2DContains(const JGELL2D *e, const JGPOINT2D *p)
 
 bool JGCircle2DIntersect(const JGELL2D *c1, const JGELL2D *c2)
 {
-    const double r1 = (c1->right - c1->left) * 0.5;
-    const double r2 = (c2->right - c2->left) * 0.5;
+    const double r1 = (c1->right - c1->left) * 0.5d;
+    const double r2 = (c2->right - c2->left) * 0.5d;
     const double sr = r1 + r2;
     const double dx = c1->left + r1 - c2->left - r2;
     const double dy = c1->top  + r1 - c2->top  - r2;

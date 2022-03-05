@@ -30,7 +30,7 @@ typedef struct GridBagLayoutTag {
     JGGRIDBC defaultGridBc;
 } JGGRIDBAGLAYOUT;
 
-void JGGridBagLayout_AddLayoutControl(struct ControlTag*, struct ControlTag*, JGGRIDBC*);
+void JGGridBagLayout_AddLayoutControl(struct ControlTag*, JGGRIDBC*);
 bool JGGridBagLayout_RemoveLayoutControl(struct LayoutTag*, struct ControlTag*);
 
 // a layout positions components of a container in a specific way
